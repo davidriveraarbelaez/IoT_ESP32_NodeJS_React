@@ -16,7 +16,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const API_KEY = process.env.API_KEY;
 
 if (!JWT_SECRET || !API_KEY) {
-  console.error('❌ Error: JWT_SECRET y API_KEY son requeridos en .env');
+  console.error('Error: JWT_SECRET y API_KEY son requeridos en .env');
   process.exit(1);
 }
 
@@ -168,18 +168,18 @@ app.get('/api/sensor/stats', authenticateToken, async (req, res) => {
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws) => {
-  console.log('✅ Cliente WebSocket conectado');
+  console.log('Cliente WebSocket conectado');
   
   ws.on('message', (message) => {
-    console.log('📨 Mensaje recibido:', message.toString());
+    console.log('Mensaje recibido:', message.toString());
   });
   
   ws.on('close', () => {
-    console.log('🔴 Cliente WebSocket desconectado');
+    console.log('Cliente WebSocket desconectado');
   });
   
   ws.on('error', (error) => {
-    console.error('❌ Error WebSocket:', error);
+    console.error('Error WebSocket:', error);
   });
 });
 
@@ -187,11 +187,11 @@ wss.on('connection', (ws) => {
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ Conectado a MongoDB Atlas'))
   .catch(err => {
-    console.error('❌ Error MongoDB:', err);
+    console.error('Error MongoDB:', err);
     process.exit(1);
   });
 
 server.listen(PORT, () => {
-  console.log(`🚀 Servidor HTTP + WebSocket corriendo en puerto ${PORT}`);
-  console.log(`🔐 API Key configurada: ${API_KEY.substring(0, 8)}...`);
+  console.log(`Servidor HTTP + WebSocket corriendo en puerto ${PORT}`);
+  console.log(`API Key configurada: ${API_KEY.substring(0, 8)}...`);
 });
