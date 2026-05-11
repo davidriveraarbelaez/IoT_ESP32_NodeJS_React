@@ -10,19 +10,27 @@ export const AuthProvider = ({ children }) => {
   })
 
   const login = useCallback(async (username, password) => {
-    const response = await api.post('/api/auth/login', {
-      username,
-      password
-    })
-    const { token, username: name } = response.data
-    const userData = { token, username: name }
-    setUser(userData)
-    localStorage.setItem('user', JSON.stringify(userData))
-    return userData
+    try {
+      const response = await api.post('/auth/login', {
+        username,
+        password
+      })
+      
+      const { token, username: name } = response.data
+      const userData = { token, username: name }
+      
+      setUser(userData)
+      localStorage.setItem('user', JSON.stringify(userData))
+      
+      return userData
+    } catch (error) {
+      console.error('Error en login:', error.response?.data || error.message)
+      throw error
+    }
   }, [])
 
   const register = useCallback(async (username, password) => {
-    await api.post('/api/auth/register', { username, password })
+    await api.post('/auth/register', { username, password })
   }, [])
 
   const logout = useCallback(() => {
@@ -31,16 +39,8 @@ export const AuthProvider = ({ children }) => {
     delete api.defaults.headers.common['Authorization']
   }, [])
 
-  const value = {
-    user,
-    login,
-    logout,
-    register,
-    isAuthenticated: !!user
-  }
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, login, logout, register }}>
       {children}
     </AuthContext.Provider>
   )

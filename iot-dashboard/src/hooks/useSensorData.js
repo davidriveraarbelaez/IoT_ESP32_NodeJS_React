@@ -10,7 +10,7 @@ export const useSensorData = () => {
 
   const loadLatest = useCallback(async () => {
     try {
-      const response = await api.get('/api/sensor/latest')
+      const response = await api.get('/sensor/latest')
       setLatest(response.data)
       return response.data
     } catch (err) {
@@ -21,7 +21,7 @@ export const useSensorData = () => {
 
   const loadHistory = useCallback(async (hours = 24, limit = 100) => {
     try {
-      const response = await api.get(`/api/sensor/history?hours=${hours}&limit=${limit}`)
+      const response = await api.get(`/sensor/history?hours=${hours}&limit=${limit}`)
       setHistory(response.data)
       return response.data
     } catch (err) {
@@ -32,7 +32,7 @@ export const useSensorData = () => {
 
   const loadStats = useCallback(async () => {
     try {
-      const response = await api.get('/api/sensor/stats')
+      const response = await api.get('/sensor/stats')
       setStats(response.data)
       return response.data
     } catch (err) {
@@ -57,7 +57,7 @@ export const useSensorData = () => {
     setLatest(newData)
     setHistory(prev => {
       const updated = [...prev, newData]
-      return updated.slice(-100) // Mantener últimos 100 puntos
+      return updated.slice(-100)
     })
   }, [])
 

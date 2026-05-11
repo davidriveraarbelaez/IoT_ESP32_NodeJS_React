@@ -7,13 +7,31 @@ import './App.css'
 
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth()
-  return user ? children : <Navigate to="/login" />
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+  return children
 }
 
-const AppContent = () => {
+const PublicRoute = ({ children }) => {
+  const { user } = useAuth()
+  if (user) {
+    return <Navigate to="/" replace />
+  }
+  return children
+}
+
+const AppRoutes = () => {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route 
+        path="/login" 
+        element={
+          <PublicRoute>
+            <Login />
+          </PublicRoute>
+        } 
+      />
       <Route 
         path="/" 
         element={
@@ -22,6 +40,7 @@ const AppContent = () => {
           </PrivateRoute>
         } 
       />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
 }
@@ -30,7 +49,7 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <AppContent />
+        <AppRoutes />
       </AuthProvider>
     </Router>
   )

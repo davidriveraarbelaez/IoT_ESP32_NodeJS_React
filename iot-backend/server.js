@@ -4,19 +4,29 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const WebSocket = require('ws');
+const { WebSocketServer } = require('ws');
 const http = require('http');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
 
-app.use(cors());
+// ==================== CONFIGURACIÓN ====================
+const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET;
+const API_KEY = process.env.API_KEY;
+
+if (!JWT_SECRET || !API_KEY) {
+  console.error('❌ Error: JWT_SECRET y API_KEY son requeridos en .env');
+  process.exit(1);
+}
+
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  credentials: true
+}));
 app.use(express.json());
 
-// ==================== MODELOS MONGODB ====================
-
-// Modelo de Usuario
+// ==================== MODELOS ====================
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -24,7 +34,6 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// Modelo de Datos del Sensor
 const sensorDataSchema = new mongoose.Schema({
   deviceId: { type: String, required: true },
   temperature: { type: Number, required: true },
@@ -33,24 +42,21 @@ const sensorDataSchema = new mongoose.Schema({
 });
 const SensorData = mongoose.model('SensorData', sensorDataSchema);
 
-// ==================== MIDDLEWARE ====================
-
+// ==================== MIDDLEWARE JWT ====================
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   
   if (!token) return res.status(401).json({ error: 'Token requerido' });
   
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Token inválido' });
     req.user = user;
     next();
   });
 };
 
-// ==================== RUTAS DE AUTENTICACIÓN ====================
-
-// Registro
+// ==================== RUTAS AUTH ====================
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -63,7 +69,6 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Login
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -75,7 +80,7 @@ app.post('/api/auth/login', async (req, res) => {
     
     const token = jwt.sign(
       { userId: user._id, username: user.username }, 
-      process.env.JWT_SECRET, 
+      JWT_SECRET, 
       { expiresIn: '24h' }
     );
     
@@ -85,29 +90,21 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// ==================== RUTAS DE DATOS (PROTEGIDAS) ====================
-
-// Recibir datos desde ESP32 (API Key simple o header)
+// ==================== RUTAS SENSOR ====================
 app.post('/api/sensor/data', async (req, res) => {
   try {
     const { deviceId, temperature, humidity, apiKey } = req.body;
     
-    // Validación simple de API Key
-    if (apiKey !== 'TU_API_KEY_SECRETA') {
+    if (apiKey !== API_KEY) {
       return res.status(401).json({ error: 'API Key inválida' });
     }
     
-    const data = new SensorData({
-      deviceId,
-      temperature,
-      humidity
-    });
-    
+    const data = new SensorData({ deviceId, temperature, humidity });
     await data.save();
     
     // Enviar a todos los clientes WebSocket conectados
     wss.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
+      if (client.readyState === 1) {
         client.send(JSON.stringify({
           type: 'new_data',
           data: { deviceId, temperature, humidity, timestamp: new Date() }
@@ -121,7 +118,6 @@ app.post('/api/sensor/data', async (req, res) => {
   }
 });
 
-// Obtener últimos datos (Dashboard)
 app.get('/api/sensor/latest', authenticateToken, async (req, res) => {
   try {
     const latest = await SensorData.findOne().sort({ timestamp: -1 });
@@ -131,25 +127,21 @@ app.get('/api/sensor/latest', authenticateToken, async (req, res) => {
   }
 });
 
-// Obtener historial de datos
 app.get('/api/sensor/history', authenticateToken, async (req, res) => {
   try {
     const { limit = 100, hours = 24 } = req.query;
     const since = new Date(Date.now() - hours * 60 * 60 * 1000);
     
-    const data = await SensorData.find({
-      timestamp: { $gte: since }
-    })
-    .sort({ timestamp: -1 })
-    .limit(parseInt(limit));
+    const data = await SensorData.find({ timestamp: { $gte: since } })
+      .sort({ timestamp: -1 })
+      .limit(parseInt(limit));
     
-    res.json(data.reverse()); // Orden cronológico para gráficas
+    res.json(data.reverse());
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener historial' });
   }
 });
 
-// Estadísticas
 app.get('/api/sensor/stats', authenticateToken, async (req, res) => {
   try {
     const stats = await SensorData.aggregate([
@@ -173,22 +165,33 @@ app.get('/api/sensor/stats', authenticateToken, async (req, res) => {
 });
 
 // ==================== WEBSOCKET ====================
+const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws) => {
-  console.log('Cliente WebSocket conectado');
+  console.log('✅ Cliente WebSocket conectado');
+  
+  ws.on('message', (message) => {
+    console.log('📨 Mensaje recibido:', message.toString());
+  });
   
   ws.on('close', () => {
-    console.log('Cliente WebSocket desconectado');
+    console.log('🔴 Cliente WebSocket desconectado');
+  });
+  
+  ws.on('error', (error) => {
+    console.error('❌ Error WebSocket:', error);
   });
 });
 
 // ==================== CONEXIÓN MONGODB ====================
-
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Conectado a MongoDB Atlas'))
-  .catch(err => console.error('Error MongoDB:', err));
+  .then(() => console.log('✅ Conectado a MongoDB Atlas'))
+  .catch(err => {
+    console.error('❌ Error MongoDB:', err);
+    process.exit(1);
+  });
 
-const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
+  console.log(`🚀 Servidor HTTP + WebSocket corriendo en puerto ${PORT}`);
+  console.log(`🔐 API Key configurada: ${API_KEY.substring(0, 8)}...`);
 });

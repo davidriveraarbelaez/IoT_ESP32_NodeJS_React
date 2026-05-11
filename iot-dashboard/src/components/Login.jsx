@@ -1,8 +1,10 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import styles from './Login.module.css'
 
 const Login = () => {
+  const navigate = useNavigate()
   const [isLogin, setIsLogin] = useState(true)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -18,12 +20,19 @@ const Login = () => {
     try {
       if (isLogin) {
         await login(username, password)
+        navigate('/', { replace: true })
       } else {
         await register(username, password)
         await login(username, password)
+        navigate('/', { replace: true })
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Error de autenticación')
+      console.error('Error completo:', err)
+      setError(
+        err.response?.data?.error || 
+        err.message || 
+        'Error de conexión con el servidor'
+      )
     } finally {
       setLoading(false)
     }
@@ -74,9 +83,9 @@ const Login = () => {
           <button 
             className={styles.button} 
             type="submit"
-            disabled={loading}
+            disabled={loading || !username || !password}
           >
-            {loading ? 'Cargando...' : (isLogin ? 'Entrar' : 'Crear Cuenta')}
+            {loading ? '⏳ Cargando...' : (isLogin ? 'Entrar' : 'Crear Cuenta')}
           </button>
         </form>
 
